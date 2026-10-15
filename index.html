@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATS Score Checker</title>
+  <meta name="description" content="Check your resume against any job description, get an ATS match score, and receive ready-to-paste fixes to reach 98–100%." />
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Resume file parsing libs (load from CDN; paste always works offline) -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <span class="brand-mark">ATS</span>
+        <div>
+          <h1>ATS Score Checker</h1>
+          <p class="tagline">Match your resume to any JD — and get the exact fixes to hit 98–100%.</p>
+        </div>
+      </div>
+      <button id="themeToggle" class="btn ghost small" type="button" title="Toggle theme" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- ===================== RESUME PANEL ===================== -->
+    <section class="card" id="resumeCard">
+      <div class="card-head">
+        <h2>1 · Your Resume</h2>
+        <span id="resumeStatus" class="pill muted">No resume saved</span>
+      </div>
+
+      <p class="help">
+        Upload once (PDF / DOCX / TXT) or paste the text. It's saved <strong>in your browser only</strong>
+        (nothing is uploaded to any server) and reused every time — no need to re-add it. You can replace it anytime.
+      </p>
+
+      <div id="resumeEmpty">
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload resume">
+          <input type="file" id="fileInput" accept=".pdf,.docx,.txt" hidden />
+          <div class="dz-inner">
+            <div class="dz-icon">⬆</div>
+            <p><strong>Click to upload</strong> or drag &amp; drop</p>
+            <p class="small muted">PDF, DOCX or TXT</p>
+          </div>
+        </div>
+        <div class="or-divider"><span>or paste text</span></div>
+        <textarea id="resumePaste" rows="8" placeholder="Paste your full resume text here..."></textarea>
+        <div class="row end">
+          <button id="saveResumeBtn" class="btn primary" type="button">Save Resume</button>
+        </div>
+      </div>
+
+      <div id="resumeSaved" class="hidden">
+        <div class="saved-row">
+          <div>
+            <span class="pill ok" id="resumeMeta">Resume saved</span>
+            <span class="small muted" id="resumeWords"></span>
+          </div>
+          <div class="row">
+            <button id="viewResumeBtn" class="btn ghost small" type="button">View / Edit</button>
+            <button id="replaceResumeBtn" class="btn ghost small" type="button">Replace</button>
+          </div>
+        </div>
+        <textarea id="resumeView" rows="10" class="hidden"></textarea>
+        <div id="resumeViewActions" class="row end hidden">
+          <button id="cancelEditBtn" class="btn ghost small" type="button">Cancel</button>
+          <button id="updateResumeBtn" class="btn primary small" type="button">Save changes</button>
+        </div>
+      </div>
+      <p id="parseMsg" class="parse-msg"></p>
+    </section>
+
+    <!-- ===================== JD PANEL ===================== -->
+    <section class="card">
+      <div class="card-head">
+        <h2>2 · Job Description</h2>
+        <button id="clearJdBtn" class="btn ghost small" type="button">Clear</button>
+      </div>
+      <p class="help">Paste the full job description for the role you're applying to (responsibilities + requirements).</p>
+      <input type="text" id="jobTitleInput" class="title-input" placeholder="Job title (optional, e.g. Senior SEO Manager)" />
+      <textarea id="jdPaste" rows="12" placeholder="Paste the full job description here..."></textarea>
+    </section>
+
+    <!-- ===================== RUN ===================== -->
+    <section class="run-bar">
+      <button id="checkBtn" class="btn primary big" type="button">⚡ Check ATS Score</button>
+      <label class="ai-toggle">
+        <input type="checkbox" id="useAiToggle" />
+        <span>Also run AI rewrite (optional)</span>
+      </label>
+      <button id="aiSettingsBtn" class="btn ghost small" type="button">AI settings</button>
+    </section>
+
+    <!-- ===================== AI SETTINGS ===================== -->
+    <section class="card ai-settings hidden" id="aiSettings">
+      <div class="card-head"><h2>AI Rewrite Settings (optional)</h2></div>
+      <p class="help">
+        For AI-written, tailored bullet rewrites, add your own API key. It's stored <strong>only in your browser</strong>
+        and sent directly to the provider — never to us. The built-in checker works fully without this.
+      </p>
+      <div class="grid2">
+        <label class="field">
+          <span>Provider</span>
+          <select id="aiProvider">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Model</span>
+          <input type="text" id="aiModel" placeholder="claude-opus-5-5" />
+        </label>
+      </div>
+      <label class="field">
+        <span>API key</span>
+        <input type="password" id="aiKey" placeholder="sk-..." autocomplete="off" />
+      </label>
+      <div class="row end">
+        <button id="saveAiBtn" class="btn primary small" type="button">Save settings</button>
+      </div>
+      <p class="small muted" id="aiModelHint"></p>
+    </section>
+
+    <!-- ===================== RESULTS ===================== -->
+    <section id="results" class="hidden">
+      <div class="card score-card">
+        <div class="gauge-wrap">
+          <svg viewBox="0 0 120 120" class="gauge" id="gauge" aria-hidden="true">
+            <circle class="gauge-bg" cx="60" cy="60" r="52"></circle>
+            <circle class="gauge-fg" cx="60" cy="60" r="52" id="gaugeFg"></circle>
+          </svg>
+          <div class="gauge-center">
+            <span id="scoreNum">0</span><span class="pct">%</span>
+            <span id="scoreVerdict" class="verdict"></span>
+          </div>
+        </div>
+        <div class="score-breakdown" id="scoreBreakdown"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>🎯 Missing keywords to add</h2><span id="missingCount" class="pill"></span></div>
+        <p class="help" id="missingHelp">These appear in the JD but not in your resume. Add them (where true for you) to raise your score fast. Highest-impact first.</p>
+        <div id="missingList" class="chip-wrap"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>📋 Ready-to-paste fixes</h2><button class="btn ghost small" id="copyAllBtn" type="button">Copy all</button></div>
+        <div id="recoBlocks"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>✅ ATS formatting checklist</h2></div>
+        <ul id="formatChecklist" class="checklist"></ul>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>🔍 Keyword match detail</h2><button class="btn ghost small" id="toggleTableBtn" type="button">Show</button></div>
+        <div id="keywordTableWrap" class="hidden"></div>
+      </div>
+
+      <div class="card ai-result hidden" id="aiResultCard">
+        <div class="card-head"><h2>🤖 AI rewrite</h2><span id="aiStatus" class="pill muted"></span></div>
+        <div id="aiOutput" class="ai-output"></div>
+      </div>
+    </section>
+
+    <p class="footer-note">
+      100% private: your resume and JD never leave your browser (unless you enable the optional AI rewrite with your own key).
+      Built as a static site for daily job-hunting use.
+    </p>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
