@@ -63,7 +63,7 @@ function importFromText(text){
   }
   if(idx.summary!==undefined) p.summary = sectionLines("summary").join(" ");
   if(idx.skills!==undefined){
-    p.skills = sectionLines("skills").join(", ").split(/[,;•|\n]/).map(s=>s.trim()).filter(s=>s.length>1);
+    p.skills = sectionLines("skills").join(", ").split(/[,;•·|\/\n]|\s{3,}/).map(s=>s.trim()).filter(s=>s.length>1 && s.length<60);
   }
   if(idx.certifications!==undefined){
     p.certifications = sectionLines("certifications").map(s=>s.replace(/^[•\-*]\s*/,"")).filter(Boolean);
@@ -75,28 +75,51 @@ function importFromText(text){
   if(idx.education!==undefined){
     p.education = sectionLines("education").filter(l=>!/^[•\-*]/.test(l)).map(l=>{
       const e=emptyEdu(); const dm=l.match(/(19|20)\d{2}/g); if(dm){e.end=dm[dm.length-1]; if(dm.length>1)e.start=dm[0];}
-      e.degree=l.replace(/\s*\(?(19|20)\d{2}.*$/,"").trim()||l; return e;
+      const noDate=l.replace(/,?\s*\(?(19|20)\d{2}\)?.*$/,"").trim();
+      const parts=noDate.split(/,\s*/).map(s=>s.trim()).filter(Boolean);
+      e.degree=parts[0]||noDate; e.school=parts[1]||""; if(parts[2])e.location=parts[2];
+      return e;
     });
     if(!p.education.length) p.education=[emptyEdu()];
   }
   return normalizeProfile(p);
 }
+const ROLE_KW=/\b(manager|specialist|lead|analyst|engineer|director|consultant|officer|executive|coordinator|associate|developer|designer|writer|strategist|intern|architect|administrator|president|founder|head|supervisor|vp)\b/i;
+const MONTH=/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b/ig;
+const DATEG=/((?:19|20)\d{2}|present|current)/ig;
+const BULLET=/^[•\-*·‣◦▪➤»]\s*/;
 function parseJobs(sl){
   const jobs=[]; let cur=null;
-  for(const l of sl){
-    if(/^[•\-*]/.test(l)){ if(cur) cur.bullets.push(l.replace(/^[•\-*]\s*/,"").trim()); continue; }
-    // treat non-bullet line as a job header
-    if(cur) jobs.push(cur);
-    cur=emptyExp();
-    const dm=l.match(/((?:19|20)\d{2}|present|current)/ig);
-    if(dm){ cur.end=dm[dm.length-1]; if(dm.length>1)cur.start=dm[0]; }
-    // strip date tokens, then split the remaining "Role - Company - Location"
-    const head=l.replace(/((?:19|20)\d{2}|present|current)/ig,"").replace(/\s{2,}/g," ").replace(/[|,–-]\s*$/,"").trim();
-    const parts=head.split(/\s[–|-]\s|,\s|\s{2,}/);
-    cur.role=(parts[0]||"").trim(); cur.company=(parts[1]||"").trim(); cur.location=(parts[2]||"").trim();
+  const sep=/\s[|•·–—]\s|\s-\s|,\s|\sat\s/i;
+  const hasDate=l=>/((?:19|20)\d{2}|present|current)/i.test(l);
+  const stripDates=l=>l.replace(DATEG,"").replace(/\(\s*\)/g,"").replace(/\s{2,}/g," ").replace(/[|•·,–—-]\s*$/,"").trim();
+  const isLoc=l=>{ const t=l.replace(DATEG,"").replace(MONTH,""); return /,/.test(l) && t.split(/[\s|]+/).filter(Boolean).length<=5 && !ROLE_KW.test(t); };
+  const setDates=l=>{ const dm=l.match(DATEG); if(dm){ cur.end=dm[dm.length-1]; if(dm.length>1)cur.start=dm[0]; } };
+  const cleanLoc=l=> l.replace(DATEG,"").replace(MONTH,"").replace(/[|–—]+/g," ").replace(/\s*-\s*/g," ").replace(/\s{2,}/g," ").replace(/^[,\s]+|[,\s]+$/g,"").trim();
+  function assignHead(l){
+    const parts=stripDates(l).split(sep).map(s=>s.trim()).filter(Boolean);
+    let role=parts[0]||"", company=parts[1]||"";
+    if(company && ROLE_KW.test(company) && !ROLE_KW.test(role)){ const t=role; role=company; company=t; }
+    cur.role=role; cur.company=company; if(parts[2]) cur.location=parts[2];
+  }
+  for(const raw of sl){
+    const l=(raw||"").trim(); if(!l) continue;
+    if(BULLET.test(l)){ if(!cur) cur=emptyExp(); cur.bullets.push(l.replace(BULLET,"").trim()); continue; }
+    const headTxt=stripDates(l);
+    // "location + dates" meta line belonging to the current job
+    if(cur && !cur.start && !cur.end && hasDate(l) && (headTxt==="" || isLoc(l))){
+      setDates(l); const lp=cleanLoc(l); if(!cur.location && lp) cur.location=lp; continue;
+    }
+    // header (new job) vs plain continuation
+    if(sep.test(l) || hasDate(l) || !cur){
+      if(cur) jobs.push(cur);
+      cur=emptyExp(); setDates(l); assignHead(l);
+    } else {
+      if(!cur.location && isLoc(l)) cur.location=l; else cur.bullets.push(l);
+    }
   }
   if(cur) jobs.push(cur);
-  return jobs;
+  return jobs.filter(j=>j.role||j.company||(j.bullets&&j.bullets.length));
 }
 const HEADINGS = {
   summary:["summary","professional summary","profile","about","objective"],
@@ -354,6 +377,28 @@ function wireProfile(){
 }
 function setProfileMsg(msg,cls){ const el=document.getElementById("profileMsg"); if(el){ el.textContent=msg; el.className="parse-msg "+(cls||""); } }
 
+/* make sure the profile is populated from the saved resume (no manual step) */
+function ensureProfile(resumeText){
+  if(profileHasContent(PROFILE)) return true;
+  const txt = (resumeText && resumeText.trim()) ? resumeText : (savedResumeText()||"");
+  if(txt && txt.trim()){ PROFILE=importFromText(txt); saveProfile(); renderProfileEditor(); return profileHasContent(PROFILE); }
+  return false;
+}
+function savedResumeText(){
+  try{ return (typeof store!=="undefined"&&typeof LS!=="undefined") ? store.get(LS.resume) : localStorage.getItem("ats_resume_v1"); }
+  catch(e){ return null; }
+}
+
+/* called by app.js when a resume is saved — auto-build the profile from it */
+function onResumeSaved(text){
+  if(!text || !text.trim()) return;
+  PROFILE = importFromText(text);
+  saveProfile(); renderProfileEditor();
+  const b=document.getElementById("profileBody"); if(b) b.classList.remove("hidden");
+  const t=document.getElementById("profileToggle"); if(t) t.textContent="Collapse";
+  setProfileMsg("Auto-filled from your resume — it's ready. Review the fields anytime; you don't have to fill anything.","ok");
+}
+
 /* called by app.js after a score is produced */
 function onScore(result, resumeText, jd, jobTitle){
   LAST={result,resumeText,jd,jobTitle};
@@ -361,30 +406,37 @@ function onScore(result, resumeText, jd, jobTitle){
   card.classList.remove("hidden");
   const help=document.getElementById("optimizedHelp");
   const proj=document.getElementById("projectedScore");
+  const btn=document.getElementById("downloadDocxBtn");
 
+  ensureProfile(resumeText);
   if(!profileHasContent(PROFILE)){
-    proj.textContent="Profile needed"; proj.className="pill muted";
-    help.innerHTML="To generate your rebuilt resume, fill in <strong>Your Profile</strong> above (or click <em>Import from my resume text</em>), then run the check again. The optimized resume is built from your profile.";
-    document.getElementById("downloadDocxBtn").disabled=true;
+    proj.textContent="Add resume"; proj.className="pill muted";
+    help.innerHTML="Add your resume in step 1 above and run the check — your optimized Word resume is built automatically from it.";
+    if(btn) btn.disabled=true;
     return;
   }
-  document.getElementById("downloadDocxBtn").disabled=false;
+  if(btn) btn.disabled=false;
   const opt=buildOptimizedProfile(PROFILE, result, jd, jobTitle);
   const projected=scoreResume(profileToText(opt), jd, jobTitle);
   proj.textContent="Projected: "+projected.overall+"%";
   proj.className = projected.overall>=98?"pill ok":"pill";
   const nAdd=(opt._addedSkills||[]).length, nB=opt._addedBullets||0;
-  help.innerHTML=`Generates a Word resume in your template with <strong>${nAdd}</strong> missing keyword${nAdd===1?"":"s"} added to your Skills`+
+  help.innerHTML=`Built automatically from your saved resume, with <strong>${nAdd}</strong> missing keyword${nAdd===1?"":"s"} added to your Skills`+
     (nB?` and <strong>${nB}</strong> suggested bullet${nB===1?"":"s"} added to your most recent role`:"")+
-    `. Open it, replace any <code>[brackets]</code> with real numbers, and delete anything not true for you.`;
+    `. Click download, then open it, replace any <code>[brackets]</code> with real numbers, and delete anything not true for you.`;
 }
 
 function doDownload(){
-  if(!LAST){ toast("Run a check first"); return; }
-  if(!profileHasContent(PROFILE)){ toast("Fill your profile first"); document.getElementById("profileCard").scrollIntoView({behavior:"smooth"}); return; }
-  const opt=buildOptimizedProfile(PROFILE, LAST.result, LAST.jd, LAST.jobTitle);
+  if(!ensureProfile(LAST?LAST.resumeText:null)){
+    toast("Add your resume in step 1 first");
+    const pc=document.getElementById("resumeCard"); if(pc) pc.scrollIntoView({behavior:"smooth"});
+    const msg=document.getElementById("optimizedMsg"); if(msg){ msg.textContent="No resume found — add your resume in step 1, then run the check."; msg.className="parse-msg err"; }
+    return;
+  }
+  const L = LAST || {result:scoreResume(profileToText(PROFILE),"",""), jd:"", jobTitle:""};
+  const opt=buildOptimizedProfile(PROFILE, L.result, L.jd, L.jobTitle);
   const safe=(PROFILE.name||"Resume").replace(/[^a-z0-9]+/gi,"_").replace(/^_|_$/g,"");
-  const role=(LAST.jobTitle||"").replace(/[^a-z0-9]+/gi,"_").replace(/^_|_$/g,"");
+  const role=(L.jobTitle||"").replace(/[^a-z0-9]+/gi,"_").replace(/^_|_$/g,"");
   const date=new Date().toISOString().slice(0,10);
   const fn=[safe, role, date].filter(Boolean).join("_")+".docx";
   try{ downloadDocx(opt, fn);
@@ -402,7 +454,12 @@ function initResume(){
     document.getElementById("profileBody").classList.remove("hidden");
     const t=document.getElementById("profileToggle"); if(t)t.textContent="Collapse";
     document.getElementById("profileCard").scrollIntoView({behavior:"smooth"}); };
-  // expand profile automatically if empty (first-time nudge)
+  // auto-fill the profile from an already-saved resume (covers resumes saved before this update)
+  if(!profileHasContent(PROFILE)){
+    const rt=savedResumeText();
+    if(rt && rt.trim()){ PROFILE=importFromText(rt); saveProfile(); renderProfileEditor(); }
+  }
+  // if still empty, nudge the user to add a resume
   if(!profileHasContent(PROFILE)){ const b=document.getElementById("profileBody"); if(b){ b.classList.remove("hidden"); if(tgl)tgl.textContent="Collapse"; } }
 }
 

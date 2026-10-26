@@ -600,6 +600,8 @@ function saveResume(text, name){
   store.set(LS.resume, text.trim());
   if (name) store.set(LS.resumeName, name);
   refreshResumeUI(); setParse("Resume saved to this browser ✓","ok"); toast("Resume saved");
+  // auto-build the structured profile from this resume (no manual filling needed)
+  if (window.Resume && window.Resume.onResumeSaved) window.Resume.onResumeSaved(text.trim());
   return true;
 }
 function setParse(msg,cls){ const p=$("parseMsg"); p.textContent=msg||""; p.className="parse-msg "+(cls||""); }
