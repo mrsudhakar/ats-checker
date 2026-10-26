@@ -16,10 +16,17 @@ Everything runs in your browser. Your resume and the job description **never lea
 ## How to use
 
 1. **Add your resume once** — upload a PDF, DOCX, or TXT (auto-extracted in-browser), or paste the text. It's saved in your browser (`localStorage`) and reused every time. Use **Replace** to swap in a new version anytime.
-2. **Paste the job description** (and optionally the job title).
-3. Click **⚡ Check ATS Score**.
-4. Apply the fixes it gives you — add the missing keywords where they're genuinely true for you, paste the updated Skills section and summary, and add the suggested bullets (fill the `[brackets]` with your real numbers).
-5. Re-run until you hit **98–100%**.
+2. **Fill "Your Profile" once** — the editable fields (name, contact, summary, each job + bullets, education, skills) that the rebuilt resume is generated from. Click **Import from my resume text** to auto-fill it from the resume above, then review. Saved in your browser.
+3. **Paste the job description** (and optionally the job title).
+4. Click **⚡ Check ATS Score**.
+5. **Download the optimized resume** — under *Optimized resume (Word)*, click **⬇ Download optimized resume (.docx)**. It rebuilds your resume in your template with every missing keyword added to Skills (and suggested bullets added to your most recent role) to reach ~100%.
+6. **Open it and review** — replace any `[brackets]` with your real numbers and delete anything that isn't genuinely true for you. Then apply with it.
+
+### The rebuilt resume
+
+- Generated **100% in your browser** as a real `.docx` (no libraries, works offline) — selectable text, standard single-column structure, so it's maximally ATS-readable.
+- Built from **Your Profile** + the missing keywords from the score, so each run produces an updated, tailored resume named like `Jane_Doe_Senior_SEO_Manager_2026-10-26.docx`.
+- The *Projected* score shown next to the download tells you what the rebuilt resume will score.
 
 > **Reaching 98–100%:** The score is driven mostly by keyword match. Add every relevant missing keyword into your **Skills section** and work the important ones naturally into your **experience bullets** using the exact phrasing from the JD. Fix any red/yellow items on the formatting checklist. Re-check — the score climbs as gaps close.
 
@@ -59,6 +66,7 @@ Bookmark it and use it before every application.
 | `styles.css` | Styling (light/dark) |
 | `data.js` | SEO/marketing skills taxonomy, aliases, action verbs, stopwords |
 | `app.js` | Parsing, scoring, recommendations, AI rewrite |
+| `resume.js` | Structured profile editor, optimizer, and dependency-free `.docx` generator |
 
 ## Privacy
 

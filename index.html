@@ -73,6 +73,22 @@
       <p id="parseMsg" class="parse-msg"></p>
     </section>
 
+    <!-- ===================== PROFILE PANEL ===================== -->
+    <section class="card" id="profileCard">
+      <div class="card-head">
+        <h2>1b · Your Profile <span class="small muted">(for the rebuilt resume)</span></h2>
+        <button id="profileToggle" class="btn ghost small" type="button">Expand</button>
+      </div>
+      <p class="help">
+        Your resume as editable fields. After each check, the tool builds an <strong>optimized Word resume from this profile</strong>
+        in your template. Fill it once — or click <em>Import from my resume text</em> to auto-fill from the resume above — then review.
+        Saved in your browser only.
+      </p>
+      <div id="profileBody" class="hidden">
+        <div id="profileMount"></div>
+      </div>
+    </section>
+
     <!-- ===================== JD PANEL ===================== -->
     <section class="card">
       <div class="card-head">
@@ -151,6 +167,16 @@
         <div id="recoBlocks"></div>
       </div>
 
+      <div class="card" id="optimizedCard">
+        <div class="card-head"><h2>📄 Optimized resume (Word)</h2><span id="projectedScore" class="pill"></span></div>
+        <p class="help" id="optimizedHelp"></p>
+        <div class="row">
+          <button id="downloadDocxBtn" class="btn primary" type="button">⬇ Download optimized resume (.docx)</button>
+          <button id="editProfileBtn" class="btn ghost small" type="button">Edit profile</button>
+        </div>
+        <p id="optimizedMsg" class="parse-msg"></p>
+      </div>
+
       <div class="card">
         <div class="card-head"><h2>✅ ATS formatting checklist</h2></div>
         <ul id="formatChecklist" class="checklist"></ul>
@@ -177,5 +203,6 @@
 
   <script src="data.js"></script>
   <script src="app.js"></script>
+  <script src="resume.js"></script>
 </body>
 </html>

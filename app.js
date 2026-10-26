@@ -26,7 +26,11 @@ function normalize(text){
        .replace(/behaviour/g,"behavior").replace(/colour/g,"color").replace(/centre/g,"center")
        .replace(/[‘’]/g,"'").replace(/[“”]/g,'"');
   // keep letters, numbers, and a few symbols meaningful to skills (+ . # /)
-  t = t.replace(/[^a-z0-9+.#/ \n]/g," ").replace(/[ \t]+/g," ");
+  t = t.replace(/[^a-z0-9+.#/ \n]/g," ");
+  // drop . # / that sit at a token boundary (sentence periods, stray slashes) but
+  // keep them INSIDE tokens like node.js, robots.txt, a/b, c#  ("link building." -> "link building")
+  t = t.replace(/([./]+)(?=\s|\n|$)/g," ").replace(/(^|[\s\n])[./]+/g,"$1");
+  t = t.replace(/[ \t]+/g," ");
   return t;
 }
 function padded(text){ return " "+normalize(text).replace(/\n/g," ")+" "; }
@@ -704,6 +708,7 @@ function init(){
     if (jd.trim().length<40){ toast("Paste a fuller job description"); $("jdPaste").focus(); return; }
     const result = scoreResume(resume, jd, jobTitle);
     renderResults(result, resume, jd, jobTitle);
+    if (window.Resume) window.Resume.onScore(result, resume, jd, jobTitle);
     if ($("useAiToggle").checked) runAi(resume, jd, jobTitle);
   }
 }
